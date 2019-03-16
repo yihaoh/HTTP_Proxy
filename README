@@ -1,0 +1,20 @@
+Usage:
+There are two ways to run the program:
+1. In root directory, do the following commands:
+   sudo docker-compose up
+2. In the directory /code, do the following:
+   make
+   ./proxy
+
+Please note that the proxy starts as a daemon if run outside the docker
+
+Please send all request to port 12345 on the machine where the proxy is running.
+
+Log for your activity is inside /code directory.
+
+Firefox Http Proxy Configuration:
+1. Select Manual proxy configuration
+2. In the box of "HTTP Proxy", enter the IP/host address of the machine which the proxy is running on
+3. In the box of "Port", enter 12345
+4. Check "Use this proxy server for all protocols" (optional)
+5. Hit "OK"

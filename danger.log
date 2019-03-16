@@ -1,0 +1,86 @@
+Danger Log for HW2
+Xinyi Gong, Yihao Hu
+
+
+02/09: 
+Potential Danger:
+Cannot process “POST” request
+Solution:
+POST request has body part. We use “content-length” part to decide the length of body part to receive it. No matter what transfer-encoding method the response use, the content length is always accurate.
+
+
+02/10: 
+Potential Danger:
+recv() function cannot receive all data at once. 
+Solution:
+Put recv() in a while loop. For receiving request, keep calling recv() until reaching the end of request. The end of normal GET and CONNECT request is usually indicated by “\r\n\r\n”, and the end of POST request is tracked either by “0\r\n\r\n” (chunked) or the content length field.
+
+
+02/10: 
+Potential Danger:
+send() function might not send all data at once. 
+Solution:
+Put send() in a while loop. Keep sending out data until the length of total sent data equals to the length of the data that is supposed to be sent out. 
+
+
+02/11: 
+Potential Danger:
+Can receive pictures but the browser fails to load them with GET and POST requests. 
+Solution:
+When receiving data, using vector<char> as a buffer and do not convert it into string. When sending response back to the client, use vector<char>. data() and vector.size() instead of strlen(). Headers are okay to be stored in string because they are in plaintext. On the other hand, response body is usually encoded and contains “/0” which is the string terminator. Therefore, when using strlen() to transmit data, it automatically stop counting when encountering the string terminator, causing fewer bytes to be transmitted to the client. 
+
+
+02/13: 
+Potential Danger:
+Fail to add response into cache, which is a field of proxy object.
+Solution:
+Make thread function a global function instead of a member of Proxy and then add the reference of cache as the argument it. In this way, all the thread can work on the same cache object.
+
+
+02/16: 
+Potential Danger:
+When including full resource url (e.g. http://cplusplus.com/reference/) in the first line of request (e.g. GET http://cplusplus/reference/ HTTP/1.1), we might run into a problem when the server keep returning “301 Moved Permanently” and the page does not load up.  
+Solution:
+When the content of “Host: …” is also present in the first line of request, cut the full url down to its relative path (e.g. GET http://cplusplus/reference/ HTTP/1.1 -> GET /reference/ HTTP/1.1). This would prevent the “301” response and the page successfully load up in the end.
+
+
+02/18: 
+Potential Danger:
+Fail to add max-age to second. Fail to compare expire time and current time because of different time zones.
+Solution:
+Use mktime to transfer struct tm to time_t and then add max-age to it. Use gmtime to transfer local time to GMT time. 
+
+
+02/20: 
+Potential Danger:
+Cannot send back response from cache and the browser shows “The website didn’t send any data”. 
+Solution:
+This is because the server believes the proxy should keep the copy of the page. So we cache the response even it says “private” in cache-control field.
+
+
+02/21: 
+Potential Danger:
+Unable to compile the project after adding lock to the cache.
+Solution:
+Use lock_guard<mutex> instead of mutex. The class lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+
+
+02/22: 
+Potential Danger:
+Some web pages never end loading although all the content is displayed and no new request shows up in the log file.
+Solution:
+Many requests from clients contain “Connection:Keep-Alive” in the header. If we modify it to “closed”, then the the connection will be cut once all the resources are loaded.
+
+
+02/23:
+Potential Danger:
+Docker runs our proxy as init, and it would exit shortly after the container boots. Therefore, we cannot run proxy as daemon within docker.
+Solution:
+Upon booting, check if the pid of proxy is 1 (init). If yes, then don't run the proxy as daemon, otherwise it is okay to run the proxy as daemon.
+
+
+02/24:
+Potential Danger:
+Cannot open directory /var/log/ and create file "proxy.log" due to privilege issue.
+Solution:
+Simply run as root instead of nobody. Another solution is to in dockerfile, setuid for ./proxy so that it can be run in privilege of root (that way the commands in the program can be executed as root). We go with the first solution due to time constraint, but we recognize the second solution is more secure and better. Since the focus of this assignment is not setting up docker, we decide to use the first solution.
