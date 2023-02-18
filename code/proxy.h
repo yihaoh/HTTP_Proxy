@@ -45,7 +45,7 @@ private:
 public:
   Proxy();
   void Run();
-  int init_log();
+  // int init_log();
   ~Proxy() {}
   // void new_request(int id, int fd, string s);
   void send_copy(int, Request);

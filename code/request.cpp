@@ -11,18 +11,22 @@ Request::Request(int id, int browser_fd, string host_ip)
   by either call_connect or call_get_post
  */
 void Request::process_request() {
+  // request holds the text of the entire request, build it up from scratch
   request = "";
 
+  // use a buffer to continuously fetch data from client (brwoser)
   char *buff = new char[BUFF_SIZE];
   memset(buff, 0, BUFF_SIZE);
   int data_len;
   int cur = 0;
   while ((data_len = recv(browser_fd, buff, BUFF_SIZE, 0)) > 0) {
+    // add whatever is received to the request, receive number of char range is [0, BUFF_SIZE], we don't know how many exactly is received each time
     request.append(string(buff));
     cur += data_len;
 
+    // \r\n\r\n marks the end of request header (check https://docs.citrix.com/en-us/citrix-adc/current-release/appexpert/http-callout/http-request-response-notes-format.html)
     if (request.find("\r\n\r\n") != string::npos) {
-      // no need to worry about body for GET and CONNECT
+      // no need to worry about body for GET and CONNECT (because there is none)
       if (request.find("GET") != string::npos ||
           request.find("CONNECT") != string::npos) {
         break;
@@ -31,13 +35,14 @@ void Request::process_request() {
       // if POST request
       else {
         // check content length
-        int header_len = request.find("\r\n\r\n") + 4;
+        int header_len = request.find("\r\n\r\n") + 4;  // \r\n\r\n marks the end of header, so the header len is the index of \r + 4
         unsigned long found_content = request.find("Content-Length:");
         if (found_content != string::npos) {
           string tp = request.substr(found_content);
-          tp = tp.substr(16, tp.find("\r\n") - 16);
+          tp = tp.substr(16, tp.find("\r\n") - 16); // find the string between : and \r\n, this is the content length (body_len)
           int body_len = stoi(tp);
           if (header_len + body_len <= cur) {
+            // if header and body are all received, break
             break;
           }
         } else if (request.find("chunked") != string::npos &&
@@ -58,7 +63,7 @@ void Request::process_request() {
     return;
   }
 
-  // request ends properly
+  // request does not end properly, send the bad request to client
   if (request.find("\r\n\r\n") == string::npos) {
     send(browser_fd, bad_request.c_str(), bad_request.length(), 0);
     return;
@@ -78,13 +83,15 @@ void Request::process_request() {
   //  cout << id << ": full RAW request:  " << request << endl;
 
   // cut redumdunt part: host in the url
+  // if target ip can be found in first line in request (e.g. GET ip/.../... )
+  // we need to remove the ip address in the first line, otherwise there will be some problems
   size_t need_cut = header.find(target_ip);
   if (need_cut != string::npos && (method == "GET" || method == "POST")) {
     string first_line = header.substr(need_cut + target_ip.length());
     first_line = method + " " + first_line;
     request = first_line + request.substr(request.find("\r\n"));
   }
-  // close connection
+  // if Connection field exist, set it to close, otherwise the website will never finish loading even if all content is loaded
   size_t connection = request.find("Connection:");
   if (connection != string::npos && (method == "GET" || method == "POST")) {
     string tp = request.substr(connection);
@@ -142,9 +149,12 @@ void Request::call_connect() {
     char *buff = new char[BUFF_SIZE];
     memset(buff, 0, BUFF_SIZE);
     while (1) {
+      // register both target and browser to readfds
       FD_ZERO(&readfds);
       FD_SET(target_sockfd, &readfds);
       FD_SET(browser_fd, &readfds);
+
+      // use select to see which channel (browser or target) got stuff to transmit
       if (select(highest + 1, &readfds, NULL, NULL, NULL) < 0) {
         cout << "ERROR: " << id << ": when sending back success" << endl;
         break;
@@ -152,6 +162,7 @@ void Request::call_connect() {
 
       memset(buff, 0, BUFF_SIZE);
 
+      // browser send to server
       if (FD_ISSET(browser_fd, &readfds)) {
         // receive data from browser
         int data_len = recv(browser_fd, buff, BUFF_SIZE, 0);
@@ -170,7 +181,7 @@ void Request::call_connect() {
           break;
         }
 
-      } else if (FD_ISSET(target_sockfd, &readfds)) {
+      } else if (FD_ISSET(target_sockfd, &readfds)) { // server send to browser
         // receive data from target
         int data_len = recv(target_sockfd, buff, BUFF_SIZE, 0);
 
@@ -237,7 +248,7 @@ void Request::call_get_post() {
     cout << id << ": Requesting \"" << header << "\" from " << target_ip
          << endl;
 
-    // send out request
+    // send out request at once
     if (send(target_sockfd, request.c_str(), request.length(), 0) < 0) {
       cout << "ERROR: " << id << ": post or get send error" << endl;
       return;
