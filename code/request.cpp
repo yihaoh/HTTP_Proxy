@@ -308,6 +308,7 @@ void Request::call_revalidate(string etag) {
 /*
   send_all sends all bytes in request to the server as a single
   send might not actually send all
+  NOTE: 这个function好像没用过。。可以跳过
  */
 void Request::send_all(string req) {
   size_t sent = 0;
